@@ -2,139 +2,126 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pac-Man Copilot Fixed</title>
+    <title>Pac-Man Noir</title>
     <style>
-        body {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #0a0a0a;
-            color: white;
-            font-family: 'Inter', sans-serif;
-            margin: 0;
-        }
-        #ui { margin-bottom: 10px; font-size: 20px; }
-        #game {
-            position: relative;
-            width: 400px;
-            height: 400px;
-            background-color: #000;
-            border: 3px solid #333;
-            overflow: hidden;
-            border-radius: 8px;
-        }
-        .pacman {
-            width: 30px;
-            height: 30px;
-            background-color: #ff0;
-            position: absolute;
-            border-radius: 50%;
-            transition: transform 0.1s;
-        }
-        .ghost {
-            width: 30px;
-            height: 30px;
-            background-color: #f00;
-            position: absolute;
-            border-radius: 50% 50% 0 0;
-        }
-        .pellet {
-            width: 8px;
-            height: 8px;
-            background-color: #fff;
-            position: absolute;
-            border-radius: 50%;
-        }
+        body { background: #000; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: 'Courier New', monospace; }
+        #game-container { position: relative; border: 2px solid #333; box-shadow: 0 0 20px rgba(255,255,255,0.05); }
+        canvas { display: block; }
+        .stats { margin-bottom: 10px; font-size: 1.2rem; letter-spacing: 2px; }
     </style>
 </head>
 <body>
-    <div id="ui">Score: <span id="score">0</span></div>
-    <div id="game">
-        <div class="pacman" id="pacman"></div>
-        <div class="ghost" id="ghost"></div>
+    <div class="stats">SCORE: <span id="score">0</span></div>
+    <div id="game-container">
+        <canvas id="pacmanCanvas" width="380" height="380"></canvas>
     </div>
 
-    <script>
-        const game = document.getElementById('game');
-        const pacmanEl = document.getElementById('pacman');
-        const ghostEl = document.getElementById('ghost');
-        const scoreEl = document.getElementById('score');
+<script>
+const canvas = document.getElementById('pacmanCanvas');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
 
-        let score = 0;
-        let pacman = { x: 185, y: 185, size: 30 };
-        let ghost = { x: 20, y: 20, size: 30, speed: 2 };
-        let pellets = [];
+const TILE_SIZE = 20;
+let score = 0;
 
-        function updatePositions() {
-            pacmanEl.style.left = pacman.x + 'px';
-            pacmanEl.style.top = pacman.y + 'px';
-            ghostEl.style.left = ghost.x + 'px';
-            ghostEl.style.top = ghost.y + 'px';
-        }
+// 1 = Muro, 0 = Punto, 2 = Vacío
+const map = [
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+    [1,0,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,1,1,0,1,0,1,1,1,1,1,0,1,0,1,1,0,1],
+    [1,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1],
+    [1,1,1,1,0,1,1,1,2,1,2,1,1,1,0,1,1,1,1],
+    [1,1,1,1,0,1,2,2,2,2,2,2,2,1,0,1,1,1,1],
+    [1,1,1,1,0,1,2,1,1,2,1,1,2,1,0,1,1,1,1],
+    [2,2,2,2,0,2,2,1,2,2,2,1,2,2,0,2,2,2,2],
+    [1,1,1,1,0,1,2,1,1,1,1,1,2,1,0,1,1,1,1],
+    [1,1,1,1,0,1,2,2,2,2,2,2,2,1,0,1,1,1,1],
+    [1,1,1,1,0,1,2,1,1,1,1,1,2,1,0,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+    [1,0,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1],
+    [1,0,0,1,0,0,0,0,0,2,0,0,0,0,0,1,0,0,1],
+    [1,1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,0,1,1],
+    [1,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+];
 
-        // Movimiento de Pac-Man con límites
-        document.addEventListener('keydown', (e) => {
-            const step = 15;
-            if (e.key === 'ArrowUp' && pacman.y > 0) pacman.y -= step;
-            if (e.key === 'ArrowDown' && pacman.y < 370) pacman.y += step;
-            if (e.key === 'ArrowLeft' && pacman.x > 0) pacman.x -= step;
-            if (e.key === 'ArrowRight' && pacman.x < 370) pacman.x += step;
-            
-            checkCollisions();
-            updatePositions();
-        });
+let player = { x: 9 * TILE_SIZE, y: 15 * TILE_SIZE, dir: 0, nextDir: 0, speed: 2 };
 
-        // IA del Fantasma (Seguimiento simple)
-        setInterval(() => {
-            if (ghost.x < pacman.x) ghost.x += ghost.speed;
-            else ghost.x -= ghost.speed;
-            
-            if (ghost.y < pacman.y) ghost.y += ghost.speed;
-            else ghost.y -= ghost.speed;
-
-            // Colisión con Fantasma (Game Over)
-            if (Math.abs(ghost.x - pacman.x) < 20 && Math.abs(ghost.y - pacman.y) < 20) {
-                alert("Game Over! Score: " + score);
-                location.reload();
+function drawMap() {
+    for(let row = 0; row < map.length; row++) {
+        for(let col = 0; col < map[row].length; col++) {
+            let x = col * TILE_SIZE;
+            let y = row * TILE_SIZE;
+            if(map[row][col] === 1) {
+                ctx.fillStyle = '#1a1a2e';
+                ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                ctx.strokeStyle = '#16213e';
+                ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
+            } else if(map[row][col] === 0) {
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(x + TILE_SIZE/2, y + TILE_SIZE/2, 2, 0, Math.PI*2);
+                ctx.fill();
             }
-            updatePositions();
-        }, 50);
+        }
+    }
+}
 
-        function checkCollisions() {
-            pellets.forEach((p, index) => {
-                if (!p.eaten) {
-                    let dx = pacman.x - p.x;
-                    let dy = pacman.y - p.y;
-                    let distance = Math.sqrt(dx * dx + dy * dy);
+function canMove(x, y) {
+    let col = Math.floor(x / TILE_SIZE);
+    let row = Math.floor(y / TILE_SIZE);
+    let col2 = Math.ceil(x / TILE_SIZE);
+    let row2 = Math.ceil(y / TILE_SIZE);
+    return map[row][col] !== 1 && map[row][col2] !== 1 && map[row2][col] !== 1 && map[row2][col2] !== 1;
+}
 
-                    if (distance < 20) {
-                        p.eaten = true;
-                        p.el.style.display = 'none';
-                        score += 10;
-                        scoreEl.innerText = score;
-                    }
-                }
-            });
+function update() {
+    // Intentar cambiar de dirección solo si estamos alineados a la grilla
+    if (player.x % TILE_SIZE === 0 && player.y % TILE_SIZE === 0) {
+        // Comer punto
+        let r = player.y / TILE_SIZE;
+        let c = player.x / TILE_SIZE;
+        if (map[r][c] === 0) {
+            map[r][c] = 2;
+            score += 10;
+            scoreEl.innerText = score;
         }
 
-        function initGame() {
-            for (let i = 0; i < 30; i++) {
-                const px = Math.random() * 370;
-                const py = Math.random() * 370;
-                const pelletEl = document.createElement('div');
-                pelletEl.classList.add('pellet');
-                pelletEl.style.left = px + 'px';
-                pelletEl.style.top = py + 'px';
-                game.appendChild(pelletEl);
-                pellets.push({ x: px, y: py, el: pelletEl, eaten: false });
-            }
-            updatePositions();
-        }
+        if (player.nextDir === 'Up' && canMove(player.x, player.y - TILE_SIZE)) player.dir = 'Up';
+        if (player.nextDir === 'Down' && canMove(player.x, player.y + TILE_SIZE)) player.dir = 'Down';
+        if (player.nextDir === 'Left' && canMove(player.x - TILE_SIZE, player.y)) player.dir = 'Left';
+        if (player.nextDir === 'Right' && canMove(player.x + TILE_SIZE, player.y)) player.dir = 'Right';
+    }
 
-        initGame();
-    </script>
+    if (player.dir === 'Up' && canMove(player.x, player.y - player.speed)) player.y -= player.speed;
+    if (player.dir === 'Down' && canMove(player.x, player.y + player.speed)) player.y += player.speed;
+    if (player.dir === 'Left' && canMove(player.x - player.speed, player.y)) player.x -= player.speed;
+    if (player.dir === 'Right' && canMove(player.x + player.speed, player.y)) player.x += player.speed;
+}
+
+function drawPlayer() {
+    ctx.fillStyle = '#ff0';
+    ctx.beginPath();
+    ctx.arc(player.x + TILE_SIZE/2, player.y + TILE_SIZE/2, TILE_SIZE/2 - 2, 0.2 * Math.PI, 1.8 * Math.PI);
+    ctx.lineTo(player.x + TILE_SIZE/2, player.y + TILE_SIZE/2);
+    ctx.fill();
+}
+
+function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawMap();
+    update();
+    drawPlayer();
+    requestAnimationFrame(gameLoop);
+}
+
+document.addEventListener('keydown', (e) => {
+    player.nextDir = e.key.replace('Arrow', '');
+});
+
+gameLoop();
+</script>
 </body>
 </html>
