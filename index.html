@@ -1,101 +1,137 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pac-Man Game</title>
+    <title>Pac-Man Copilot Fixed</title>
     <style>
         body {
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            background-color: black;
+            background-color: #0a0a0a;
+            color: white;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
         }
+        #ui { margin-bottom: 10px; font-size: 20px; }
         #game {
             position: relative;
             width: 400px;
             height: 400px;
             background-color: #000;
-            border: 2px solid #fff;
+            border: 3px solid #333;
+            overflow: hidden;
+            border-radius: 8px;
         }
         .pacman {
-            width: 40px;
-            height: 40px;
-            background-color: yellow;
+            width: 30px;
+            height: 30px;
+            background-color: #ff0;
             position: absolute;
             border-radius: 50%;
+            transition: transform 0.1s;
         }
         .ghost {
-            width: 40px;
-            height: 40px;
-            background-color: red;
+            width: 30px;
+            height: 30px;
+            background-color: #f00;
             position: absolute;
-            border-radius: 50%;
+            border-radius: 50% 50% 0 0;
         }
         .pellet {
-            width: 10px;
-            height: 10px;
-            background-color: white;
+            width: 8px;
+            height: 8px;
+            background-color: #fff;
             position: absolute;
             border-radius: 50%;
         }
     </style>
 </head>
 <body>
+    <div id="ui">Score: <span id="score">0</span></div>
     <div id="game">
-        <div class="pacman" id="pacman" style="top: 180px; left: 180px;"></div>
-        <div class="ghost" id="ghost" style="top: 50px; left: 50px;"></div>
-        <!-- Pellets will be dynamically added here -->
+        <div class="pacman" id="pacman"></div>
+        <div class="ghost" id="ghost"></div>
     </div>
+
     <script>
         const game = document.getElementById('game');
-        const pacman = document.getElementById('pacman');
-        const ghost = document.getElementById('ghost');
+        const pacmanEl = document.getElementById('pacman');
+        const ghostEl = document.getElementById('ghost');
+        const scoreEl = document.getElementById('score');
+
         let score = 0;
+        let pacman = { x: 185, y: 185, size: 30 };
+        let ghost = { x: 20, y: 20, size: 30, speed: 2 };
+        let pellets = [];
 
-        // Basic controls for Pac-Man
-        document.addEventListener('keydown', (e) => {
-            const pacmanPos = pacman.getBoundingClientRect();
-            switch(e.key) {
-                case 'ArrowUp':
-                    pacman.style.top = pacmanPos.top - 5 + 'px';
-                    break;
-                case 'ArrowDown':
-                    pacman.style.top = pacmanPos.top + 5 + 'px';
-                    break;
-                case 'ArrowLeft':
-                    pacman.style.left = pacmanPos.left - 5 + 'px';
-                    break;
-                case 'ArrowRight':
-                    pacman.style.left = pacmanPos.left + 5 + 'px';
-                    break;
-            }
-            checkPelletCollection();
-        });
-
-        // Ghost movement (simple AI)
-        setInterval(() => {
-            const ghostPos = ghost.getBoundingClientRect();
-            ghost.style.top = ghostPos.top + (Math.random() > 0.5 ? 5 : -5) + 'px';
-            ghost.style.left = ghostPos.left + (Math.random() > 0.5 ? 5 : -5) + 'px';
-        }, 1000);
-
-        // Function for pellet collection (for simplicity, a fixed amount of pellets)
-        function checkPelletCollection() {
-            // Logic for checking collision with pellets and updating score
-            // Pellets should be added dynamically in the game
+        function updatePositions() {
+            pacmanEl.style.left = pacman.x + 'px';
+            pacmanEl.style.top = pacman.y + 'px';
+            ghostEl.style.left = ghost.x + 'px';
+            ghostEl.style.top = ghost.y + 'px';
         }
 
-        // Initialize game state (place pellets)
-        function initGame() {
-            for (let i = 0; i < 50; i++) {
-                const pellet = document.createElement('div');
-                pellet.classList.add('pellet');
-                pellet.style.top = Math.random() * 390 + 'px';
-                pellet.style.left = Math.random() * 390 + 'px';
-                game.appendChild(pellet);
+        // Movimiento de Pac-Man con límites
+        document.addEventListener('keydown', (e) => {
+            const step = 15;
+            if (e.key === 'ArrowUp' && pacman.y > 0) pacman.y -= step;
+            if (e.key === 'ArrowDown' && pacman.y < 370) pacman.y += step;
+            if (e.key === 'ArrowLeft' && pacman.x > 0) pacman.x -= step;
+            if (e.key === 'ArrowRight' && pacman.x < 370) pacman.x += step;
+            
+            checkCollisions();
+            updatePositions();
+        });
+
+        // IA del Fantasma (Seguimiento simple)
+        setInterval(() => {
+            if (ghost.x < pacman.x) ghost.x += ghost.speed;
+            else ghost.x -= ghost.speed;
+            
+            if (ghost.y < pacman.y) ghost.y += ghost.speed;
+            else ghost.y -= ghost.speed;
+
+            // Colisión con Fantasma (Game Over)
+            if (Math.abs(ghost.x - pacman.x) < 20 && Math.abs(ghost.y - pacman.y) < 20) {
+                alert("Game Over! Score: " + score);
+                location.reload();
             }
+            updatePositions();
+        }, 50);
+
+        function checkCollisions() {
+            pellets.forEach((p, index) => {
+                if (!p.eaten) {
+                    let dx = pacman.x - p.x;
+                    let dy = pacman.y - p.y;
+                    let distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < 20) {
+                        p.eaten = true;
+                        p.el.style.display = 'none';
+                        score += 10;
+                        scoreEl.innerText = score;
+                    }
+                }
+            });
+        }
+
+        function initGame() {
+            for (let i = 0; i < 30; i++) {
+                const px = Math.random() * 370;
+                const py = Math.random() * 370;
+                const pelletEl = document.createElement('div');
+                pelletEl.classList.add('pellet');
+                pelletEl.style.left = px + 'px';
+                pelletEl.style.top = py + 'px';
+                game.appendChild(pelletEl);
+                pellets.push({ x: px, y: py, el: pelletEl, eaten: false });
+            }
+            updatePositions();
         }
 
         initGame();
